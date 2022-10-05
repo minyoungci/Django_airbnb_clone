@@ -10,3 +10,6 @@ class House(models.Model):
     description = models.TextField()
     address = models.CharField(max_length=140)
     pet_allowed = models.BooleanField(default=True)
+
+    def __str__(self):
+        return self.name
