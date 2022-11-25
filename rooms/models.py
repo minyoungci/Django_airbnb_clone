@@ -45,6 +45,10 @@ class Room(CommonModel):
     def __str__(self):
         return self.name
 
+    def total_amenities(self, room):
+        print(self.amenities.all())
+        return room.amenities.count()
+
     category = models.ForeignKey(
         "categories.Category",
         null=True,
