@@ -1,7 +1,13 @@
 from rest_framework.views import APIView
+from django.db import transaction
 from rest_framework.status import HTTP_204_NO_CONTENT
 from rest_framework.response import Response
-from rest_framework.exceptions import NotFound, NotAuthenticated, ParseError
+from rest_framework.exceptions import (
+    NotFound,
+    NotAuthenticated,
+    ParseError,
+    PermissionDenied,
+)
 from .serializers import RoomDetailSerializer, RoomListSerializer
 from .models import Amenity, Room
 from categories.models import Category
@@ -81,20 +87,20 @@ class Rooms(APIView):
                         raise ParseError("The category kind should be 'rooms'")
                 except Category.DoesNotExist:
                     raise ParseError("Category not found")
-                print(request.data.get("amenities"))
-                room = serializer.save(
-                    owner=request.user,
-                    category=category,
-                )
-                amenities = request.data.get("amenities")
-                for amenity_pk in amenities:
-                    try:
-                        amenity = Amenity.objects.get(pk=amenity_pk)
-                    except Amenity.DoesNotExist:
-                        raise ParseError(f"Amenity with id {amenity_pk} not found")
-
-                serializer = RoomDetailSerializer(room)
-                return Response(serializer.data)
+                try:
+                    with transaction.atomic():
+                        room = serializer.save(
+                            owner=request.user,
+                            category=category,
+                        )
+                        amenities = request.data.get("amenities")
+                        for amenity_pk in amenities:
+                            amenity = Amenity.objects.get(pk=amenity_pk)
+                            room.amenities.add(amenity)
+                        serializer = RoomDetailSerializer(room)
+                        return Response(serializer.data)
+                except Exception:
+                    raise ParseError("Amenity not found")
             else:
                 return Response(serializer.errors)
 
@@ -113,3 +119,57 @@ class RoomDetail(APIView):
         room = self.get_object(pk)
         serializer = RoomDetailSerializer(room)
         return Response(serializer.data)
+
+    def put(self, request, pk):
+        room = self.get_object(pk)
+        if not request.user.is_authenticated:
+            raise NotAuthenticated
+        if room.owner != request.user:
+            raise PermissionDenied
+
+        serializer = RoomDetailSerializer(
+            room,
+            data=request.data,
+            partial=True,
+        )
+
+        if serializer.is_valid():
+            category_pk = request.data.get("category")
+            if category_pk:
+                try:
+                    category = Category.objects.get(pk=category_pk)
+                    if category.kind != Room:
+                        raise ParseError("Category kind should be rooms.")
+                except Category.DoesNotExist:
+                    raise ParseError("Category Not found.")
+
+            try:
+                with transaction.atomic():
+                    if category_pk:
+                        updated_room = serializer.save(category=category)
+                    else:
+                        updated_room = serializer.save()
+                    amenities = request.data.get("amenities")
+                    if amenities:
+                        room.amenities.clear()  # 기존의 Amenity 들을 제거
+                        for amenity_pk in amenities:
+                            amenity = Amenity.objects.get(pk=amenity_pk)
+                            updated_room.amenities.add(amenity)
+
+                    seiralizer = RoomDetailSerializer(updated_room)
+                    return Response(serializer.data)
+            except Exception:
+                raise ParseError("Amenity not found")
+        else:
+            return Response(serializer.errors)
+
+    def delete(self, request, pk):
+        room = self.get_object(pk)
+        if not request.user.is_authenticated:
+            raise NotAuthenticated
+
+        if room.owner != request.user:
+            raise PermissionDenied
+
+        room.delete()
+        return Response(status=HTTP_204_NO_CONTENT)
