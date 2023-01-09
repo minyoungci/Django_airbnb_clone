@@ -10,5 +10,6 @@
     "description": "dmdj",
     "address": "213",
     "pet_friendly": true,
+    "category":2,
     "kind": "entire_place"
 }
