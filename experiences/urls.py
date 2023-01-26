@@ -1,7 +1,9 @@
 from django.urls import path
-from .views import Perks, PerkDetails
+from . import views
 
 urlpatterns = [
-    path("perks/", Perks.as_view()),
-    path("perks/<int:pk>", PerkDetails.as_view()),
+    path("", views.Experiences.as_view()),
+    path("/<int:pk>", views.ExperienceDetails.as_view()),
+    path("perks/", views.Perks.as_view()),
+    path("perks/<int:pk>", views.PerkDetails.as_view()),
 ]
