@@ -215,6 +215,50 @@ class ExperienceBookings(APIView):
         experience = self.get_object(pk)
         now = timezone.localtime(timezone.now()).date()
         bookings = Booking.objects.filter(
+            experiences=experience,
+            kind=Booking.BookingKindChoices.EXPERIENCE,
+            experience_time__gt=now,
+        )[start:end]
+        serializer = PublicBookingSerializer(
+            bookings,
+            many=True,
+        )
+        return Response(serializer.data)
+
+    def post(self, request, pk):
+        experience = self.get_object(pk)
+        serializer = CreateExperienceBookingSerializer(data=request.data)
+
+        if serializer.is_valid():
+            booking = serializer.save(
+                experience=experience,
+                user=request.user,
+                kind=Booking.BookingKindChoices.EXPERIENCE,
+            )
+            serializer = PublicBookingSerializer(booking)
+            return Response(serializer.data)
+        else:
+            return Response(serializer.errors)
+
+
+class ExperienceBookings(APIView):
+    def get_object(self, pk):
+        try:
+            return Experience.objects.get(pk=pk)
+        except Experience.DoesNotExist:
+            raise NotFound
+
+    def get(self, request, pk):
+        try:
+            page = int(request.query_params.get("page", 1))
+        except ValueError:
+            page = 1
+        page_size = settings.PAGE_SIZE
+        start = (page - 1) * page_size
+        end = start + page_size
+        experience = self.get_object(pk)
+        now = timezone.localtime(timezone.now()).date()
+        bookings = Booking.objects.filter(
             experience=experience,
             kind=Booking.BookingKindChoices.EXPERIENCE,
             experience_time__gt=now,
@@ -254,7 +298,7 @@ class ExperienceBookingDetail(APIView):
     def get_booking(self, pk):
         try:
             return Booking.objects.get(pk=pk)
-        except Booking.DeesNotExist:
+        except Booking.DoesNotExist:
             raise NotFound
 
     def get(self, request, pk, booking_pk):
@@ -277,7 +321,6 @@ class ExperienceBookingDetail(APIView):
             serializer = PublicBookingSerializer(booking)
 
             return Response(serializer.data)
-
         else:
             return Response(serializer.errors)
 
