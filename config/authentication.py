@@ -1,7 +1,14 @@
 from rest_framework.authentication import BaseAuthentication
+from rest_framework.exceptions import AuthenticationFailed
+from users.models import User
 
 
 class TrustMeBroAuthentication(BaseAuthentication):
     def authenticate(self, request):
-        print(request.headers)
-        return None
+        username = request.headers.get("trust-me")
+        if not username:
+            return None
+        try:
+            user = User.objects.get(username=username)
+        except User.DoesNotExist:
+            raise AuthenticationFailed(f"No user {username}")
